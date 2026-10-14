@@ -60,7 +60,7 @@
 ./scripts/package.sh
 ```
 
-脚本输出 `dist/QuietWall.app`，仅包含当前构建机器的架构，使用本地临时签名，未做 Developer ID 签名与公证。正式对外分发前需完成对应签名、双架构打包和兼容性验证。
+脚本输出 `dist/QuietWall.app`，默认包含当前构建机器的架构。执行 `./scripts/package.sh --universal` 可生成同时支持 Intel 和 Apple Silicon 的应用。使用本地临时签名，未做 Developer ID 签名与公证。
 
 1. 将生成的 `QuietWall.app` 放到“应用程序”文件夹并打开。
 2. 在设置中选择本地视频；视频保留在原位置，请勿删除。
@@ -68,7 +68,16 @@
 4. 若处于电池供电，默认显示静态画面；插电后自动播放。
 5. 开机启动若需系统批准，点击设置中的按钮前往“登录项”允许。
 
-当前仓库提供源码，尚未发布可下载的应用安装包。
+## GitHub 自动发布
+
+发布与 `Resources/Info.plist` 应用版本一致的 Release（例如 `v0.1.0`）后，GitHub Actions 自动检查代码、执行核心测试、构建双架构应用并校验签名，最后上传以下文件到该 Release：
+
+- `QuietWall-v版本号-universal.zip`：解压后得到 `QuietWall.app`，适用于 Intel / Apple Silicon。
+- `SHA256SUMS.txt`：压缩包的 SHA-256 校验值。
+
+也可在 Actions 的“发布 macOS 应用”工作流中手动输入已有 Release 标签重新打包。流水线始终检出标签指向的源码，标签和应用版本不一致时拒绝发布产物。
+
+从 [Releases](https://github.com/black-lattice/QuietWall/releases) 下载后，将应用移入“应用程序”文件夹。由于应用尚未公证，首次打开可能被 Gatekeeper 拦截；确认下载来源后，可在系统“隐私与安全性”中允许该应用。
 
 ## 实机验收
 
