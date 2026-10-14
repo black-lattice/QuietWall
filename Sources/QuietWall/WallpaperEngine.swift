@@ -64,14 +64,18 @@ final class WallpaperEngine {
     }
 
     /// Queries rectangle metadata only; never captures pixels or asks for screen recording.
-    func desktopIsCovered() -> Bool {
+    func desktopIsCovered(threshold: Double) -> Bool {
         guard !windows.isEmpty,
               let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
                                                    kCGNullWindowID) as? [[String: Any]],
               let primary = NSScreen.screens.first else { return false }
+        let wallpaperIDs = Set(windows.map(\.windowNumber))
         let rects: [CGRect] = list.compactMap { item in
-            guard let layer = item[kCGWindowLayer as String] as? Int, layer == 0,
-                  let alpha = item[kCGWindowAlpha as String] as? Double, alpha >= 0.99,
+            guard let layer = item[kCGWindowLayer as String] as? Int,
+                  let alpha = item[kCGWindowAlpha as String] as? Double,
+                  let windowID = item[kCGWindowNumber as String] as? Int,
+                  DesktopCoverage.canCoverDesktop(layer: layer, alpha: alpha,
+                                                   isWallpaper: wallpaperIDs.contains(windowID)),
                   let bounds = item[kCGWindowBounds as String] as? [String: Any] else { return nil }
             return CGRect(dictionaryRepresentation: bounds as CFDictionary)
         }
@@ -80,7 +84,7 @@ final class WallpaperEngine {
             let visible = screen.visibleFrame
             let quartz = CGRect(x: visible.minX, y: primary.frame.maxY - visible.maxY,
                                 width: visible.width, height: visible.height)
-            return DesktopCoverage.isCovered(quartz, by: rects)
+            return DesktopCoverage.isCovered(quartz, by: rects, threshold: threshold)
         }
     }
 

@@ -20,8 +20,9 @@ cat >> "$check_dir/core-tests.swift" <<'SWIFT'
 let suite = XCTestSuite(name: "QuietWallCore")
 suite.addTest(PolicyTests.defaultTestSuite)
 suite.addTest(CoverageTests.defaultTestSuite)
+suite.addTest(SessionSnapshotTests.defaultTestSuite)
 suite.run()
-guard let result = suite.testRun, result.executionCount >= 14, result.hasSucceeded else { exit(1) }
+guard let result = suite.testRun, result.executionCount >= 27, result.hasSucceeded else { exit(1) }
 SWIFT
 test_frameworks="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/Library/Frameworks"
 test_libraries="$(xcode-select -p)/Platforms/MacOSX.platform/Developer/usr/lib"

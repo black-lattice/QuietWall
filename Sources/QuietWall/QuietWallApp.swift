@@ -5,8 +5,10 @@ struct QuietWallApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        MenuBarExtra("QuietWall", systemImage: "leaf") {
+        MenuBarExtra {
             WallpaperMenu(model: delegate.model, showSettings: delegate.showSettings)
+        } label: {
+            WallpaperMenuIcon(model: delegate.model)
         }
         .menuBarExtraStyle(.menu)
     }
@@ -46,6 +48,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+private struct WallpaperMenuIcon: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        Image(systemName: model.errorMessage == nil ? "leaf" : "exclamationmark.triangle")
+            .accessibilityLabel(model.errorMessage == nil ? "QuietWall" : "QuietWall 有操作失败")
+            .help(model.errorMessage ?? model.status)
+    }
+}
+
 private struct WallpaperMenu: View {
     @ObservedObject var model: AppModel
     let showSettings: () -> Void
@@ -53,6 +65,13 @@ private struct WallpaperMenu: View {
     var body: some View {
         Text(model.status)
         if let video = model.video { Text(video.url.lastPathComponent) }
+        if let error = model.errorMessage {
+            Menu("操作失败 · 查看详情") {
+                Text(error)
+                Button("打开设置处理…", action: showSettings)
+                Button("忽略此提示") { model.errorMessage = nil }
+            }
+        }
         Divider()
         Button(model.manuallyPaused ? "恢复自动播放" : "手动暂停") { model.togglePause() }
             .disabled(model.video == nil)

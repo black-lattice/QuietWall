@@ -9,7 +9,7 @@ public enum PauseReason: String {
     case battery = "电池供电，省电暂停"
     case thermal = "设备温度较高"
     case reducedMotion = "系统已开启减少动态效果"
-    case covered = "桌面已被完全遮挡"
+    case covered = "桌面遮挡已达阈值，省电暂停"
 }
 
 public struct PlaybackPolicy {

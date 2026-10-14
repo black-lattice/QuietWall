@@ -13,6 +13,7 @@ final class AppModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var pauseOnBattery: Bool { didSet { saveOptions(); refresh() } }
     @Published var pauseWhenCovered: Bool { didSet { saveOptions(); refresh() } }
+    @Published var coverageThreshold: Double { didSet { saveOptions(); refresh() } }
     @Published var allScreens: Bool {
         didSet { saveOptions(); engine.setAllScreens(allScreens); refresh() }
     }
@@ -31,6 +32,7 @@ final class AppModel: ObservableObject {
     init() {
         pauseOnBattery = defaults.object(forKey: "pauseOnBattery") as? Bool ?? true
         pauseWhenCovered = defaults.object(forKey: "pauseWhenCovered") as? Bool ?? true
+        coverageThreshold = DesktopCoverage.savedThreshold(defaults.double(forKey: "coverageThreshold"))
         allScreens = defaults.bool(forKey: "allScreens")
         manuallyPaused = defaults.bool(forKey: "manuallyPaused")
         engine.onError = { [weak self] message in
@@ -156,7 +158,9 @@ final class AppModel: ObservableObject {
         policy.reducedMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         policy.pauseWhenCovered = pauseWhenCovered
         let canCheckCoverage = policy.pauseReason == nil && !playbackFailed
-        if canCheckCoverage && pauseWhenCovered { policy.covered = engine.desktopIsCovered() }
+        if canCheckCoverage && pauseWhenCovered {
+            policy.covered = engine.desktopIsCovered(threshold: coverageThreshold)
+        }
         let playing = policy.pauseReason == nil && !playbackFailed
         engine.setPlaying(playing)
         if isPlaying != playing { isPlaying = playing }
@@ -182,6 +186,7 @@ final class AppModel: ObservableObject {
     private func saveOptions() {
         defaults.set(pauseOnBattery, forKey: "pauseOnBattery")
         defaults.set(pauseWhenCovered, forKey: "pauseWhenCovered")
+        defaults.set(coverageThreshold, forKey: "coverageThreshold")
         defaults.set(allScreens, forKey: "allScreens")
     }
 }

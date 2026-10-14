@@ -26,7 +26,8 @@ final class CoverageTests: XCTestCase {
     @objc func testOnePixelGapRemainsVisible() {
         let left = CGRect(x: 0, y: 0, width: 959, height: 1080)
         let right = CGRect(x: 960, y: 0, width: 960, height: 1080)
-        XCTAssertFalse(DesktopCoverage.isCovered(screen, by: [left, right]))
+        XCTAssertFalse(DesktopCoverage.isCovered(screen, by: [left, right], threshold: 1))
+        XCTAssertTrue(DesktopCoverage.isCovered(screen, by: [left, right]))
     }
 
     @objc func testExternalScreenWithNegativeCoordinates() {
@@ -39,5 +40,57 @@ final class CoverageTests: XCTestCase {
         XCTAssertTrue(DesktopCoverage.isCovered(screen, by: [screen.insetBy(dx: -100, dy: -100)]))
         XCTAssertFalse(DesktopCoverage.isCovered(screen, by: [screen.offsetBy(dx: 3000, dy: 0)]))
         XCTAssertFalse(DesktopCoverage.isCovered(.zero, by: [screen]))
+    }
+
+    @objc func testNinetyFivePercentBoundary() {
+        let screen = CGRect(x: 0, y: 0, width: 100, height: 100)
+        XCTAssertTrue(DesktopCoverage.isCovered(screen, by: [CGRect(x: 0, y: 0, width: 95, height: 100)]))
+        XCTAssertFalse(DesktopCoverage.isCovered(screen, by: [CGRect(x: 0, y: 0, width: 94.9, height: 100)]))
+    }
+
+    @objc func testThresholdChangesDecisionForSameLayout() {
+        let screen = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let windows = [CGRect(x: 0, y: 0, width: 92, height: 100)]
+        XCTAssertTrue(DesktopCoverage.isCovered(screen, by: windows, threshold: 0.9))
+        XCTAssertFalse(DesktopCoverage.isCovered(screen, by: windows, threshold: 0.95))
+        XCTAssertFalse(DesktopCoverage.isCovered(screen, by: windows, threshold: 1))
+    }
+
+    @objc func testOverlapCannotReachPercentageThresholdTwice() {
+        let screen = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let windows = [CGRect(x: 0, y: 0, width: 60, height: 100),
+                       CGRect(x: 30, y: 0, width: 60, height: 100)]
+        XCTAssertFalse(DesktopCoverage.isCovered(screen, by: windows))
+        XCTAssertTrue(DesktopCoverage.isCovered(screen, by: windows, threshold: 0.9))
+    }
+
+    @objc func testOffscreenAreaDoesNotCountTowardThreshold() {
+        let screen = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let windows = [CGRect(x: -100, y: 0, width: 190, height: 100)]
+        XCTAssertFalse(DesktopCoverage.isCovered(screen, by: windows))
+    }
+
+    @objc func testInvalidThresholdDoesNotPause() {
+        for threshold in [Double.nan, .infinity, 0, -1, 1.01] {
+            XCTAssertFalse(DesktopCoverage.isCovered(screen, by: [screen], threshold: threshold))
+        }
+    }
+
+    @objc func testFloatingWindowsCountButWallpaperAndTransparentWindowsDoNot() {
+        XCTAssertTrue(DesktopCoverage.canCoverDesktop(layer: 3, alpha: 1, isWallpaper: false))
+        XCTAssertTrue(DesktopCoverage.canCoverDesktop(layer: 1000, alpha: 1, isWallpaper: false))
+        XCTAssertFalse(DesktopCoverage.canCoverDesktop(layer: -1, alpha: 1, isWallpaper: false))
+        XCTAssertFalse(DesktopCoverage.canCoverDesktop(layer: 0, alpha: 0.5, isWallpaper: false))
+        XCTAssertFalse(DesktopCoverage.canCoverDesktop(layer: 0, alpha: .nan, isWallpaper: false))
+        XCTAssertFalse(DesktopCoverage.canCoverDesktop(layer: 0, alpha: 1, isWallpaper: true))
+    }
+
+    @objc func testMissingAndInvalidSavedThresholdUseRecommendedValue() {
+        for value in [Double.nan, 0, -1, 0.6, 2] {
+            XCTAssertEqual(DesktopCoverage.savedThreshold(value), 0.95)
+        }
+        for value in [0.9, 0.95, 1] {
+            XCTAssertEqual(DesktopCoverage.savedThreshold(value), value)
+        }
     }
 }

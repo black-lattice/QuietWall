@@ -38,7 +38,13 @@ struct SettingsView: View {
             Form {
                 Section("省电设置") {
                     Toggle("电池供电时暂停", isOn: $model.pauseOnBattery)
-                    Toggle("桌面完全被遮挡时暂停", isOn: $model.pauseWhenCovered)
+                    Toggle("桌面大部分被遮挡时暂停", isOn: $model.pauseWhenCovered)
+                    Picker("遮挡达到多少时暂停", selection: $model.coverageThreshold) {
+                        Text("90% · 更省电").tag(0.90)
+                        Text("95% · 推荐").tag(0.95)
+                        Text("100% · 完全遮挡").tag(1.0)
+                    }
+                    .disabled(!model.pauseWhenCovered)
                     Toggle("所有显示器都播放", isOn: $model.allScreens)
                     Text("默认只使用主显示器。低电量模式、温度过高、锁屏、休眠或系统开启“减少动态效果”时自动暂停。")
                         .font(.caption).foregroundStyle(.secondary)
@@ -47,6 +53,13 @@ struct SettingsView: View {
                     Toggle("登录时启动", isOn: Binding(get: { model.loginEnabled }, set: model.setLoginEnabled))
                     if model.loginNeedsApproval {
                         Button("前往系统设置允许开机启动") { SMAppService.openSystemSettingsLoginItems() }
+                    }
+                }
+                if let error = model.errorMessage {
+                    Section("需要处理") {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .font(.callout).textSelection(.enabled)
+                        Button("忽略此提示") { model.errorMessage = nil }
                     }
                 }
             }
@@ -61,11 +74,6 @@ struct SettingsView: View {
         .padding(24)
         .frame(width: 580, height: 700)
         .background(Color(nsColor: .windowBackgroundColor))
-        .alert("暂时无法完成操作", isPresented: Binding(
-            get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } }
-        )) {
-            Button("知道了") { model.errorMessage = nil }
-        } message: { Text(model.errorMessage ?? "") }
     }
 
     private var preview: some View {
