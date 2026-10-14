@@ -10,8 +10,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var isPlaying = false
     @Published private(set) var status = PauseReason.noVideo.rawValue
+    @Published private(set) var pausedForLowPower = false
     @Published var errorMessage: String?
     @Published var pauseOnBattery: Bool { didSet { saveOptions(); refresh() } }
+    @Published var pauseOnLowPower: Bool { didSet { saveOptions(); refresh() } }
     @Published var pauseWhenCovered: Bool { didSet { saveOptions(); refresh() } }
     @Published var coverageThreshold: Double { didSet { saveOptions(); refresh() } }
     @Published var allScreens: Bool {
@@ -31,6 +33,7 @@ final class AppModel: ObservableObject {
 
     init() {
         pauseOnBattery = defaults.object(forKey: "pauseOnBattery") as? Bool ?? true
+        pauseOnLowPower = defaults.object(forKey: "pauseOnLowPower") as? Bool ?? true
         pauseWhenCovered = defaults.object(forKey: "pauseWhenCovered") as? Bool ?? true
         coverageThreshold = DesktopCoverage.savedThreshold(defaults.double(forKey: "coverageThreshold"))
         allScreens = defaults.bool(forKey: "allScreens")
@@ -151,6 +154,7 @@ final class AppModel: ObservableObject {
         policy.sleeping = monitor.sleeping
         policy.locked = monitor.locked || monitor.sessionInactive
         policy.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        policy.pauseOnLowPower = pauseOnLowPower
         policy.onBattery = monitor.onBattery
         policy.pauseOnBattery = pauseOnBattery
         let thermal = ProcessInfo.processInfo.thermalState
@@ -163,6 +167,8 @@ final class AppModel: ObservableObject {
         }
         let playing = policy.pauseReason == nil && !playbackFailed
         engine.setPlaying(playing)
+        let pausedForLowPower = !playbackFailed && policy.pauseReason == .lowPower
+        if self.pausedForLowPower != pausedForLowPower { self.pausedForLowPower = pausedForLowPower }
         if isPlaying != playing { isPlaying = playing }
         let message = playbackFailed ? "播放失败，请重新选择视频" : (policy.pauseReason?.rawValue ?? "正在播放 · 静音循环")
         if status != message { status = message }
@@ -185,6 +191,7 @@ final class AppModel: ObservableObject {
 
     private func saveOptions() {
         defaults.set(pauseOnBattery, forKey: "pauseOnBattery")
+        defaults.set(pauseOnLowPower, forKey: "pauseOnLowPower")
         defaults.set(pauseWhenCovered, forKey: "pauseWhenCovered")
         defaults.set(coverageThreshold, forKey: "coverageThreshold")
         defaults.set(allScreens, forKey: "allScreens")

@@ -29,7 +29,7 @@ suite.addTest(PolicyTests.defaultTestSuite)
 suite.addTest(CoverageTests.defaultTestSuite)
 suite.addTest(SessionSnapshotTests.defaultTestSuite)
 suite.run()
-guard let result = suite.testRun, result.executionCount >= 27, result.hasSucceeded else { exit(1) }
+guard let result = suite.testRun, result.executionCount >= 30, result.hasSucceeded else { exit(1) }
 SWIFT
 xcrun swift -F "$test_frameworks" -I "$test_libraries" -L "$test_libraries" \
     -lXCTestSwiftSupport "$check_dir/core-tests.swift"

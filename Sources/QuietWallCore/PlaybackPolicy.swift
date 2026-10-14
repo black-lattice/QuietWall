@@ -5,7 +5,7 @@ public enum PauseReason: String {
     case manual = "已手动暂停"
     case sleeping = "显示器已休眠"
     case locked = "会话已锁定或切换"
-    case lowPower = "低电量模式"
+    case lowPower = "系统低电量模式已开启，省电暂停"
     case battery = "电池供电，省电暂停"
     case thermal = "设备温度较高"
     case reducedMotion = "系统已开启减少动态效果"
@@ -18,6 +18,7 @@ public struct PlaybackPolicy {
     public var sleeping = false
     public var locked = false
     public var lowPower = false
+    public var pauseOnLowPower = true
     public var onBattery = false
     public var pauseOnBattery = true
     public var thermallyLimited = false
@@ -32,7 +33,7 @@ public struct PlaybackPolicy {
         if manuallyPaused { return .manual }
         if sleeping { return .sleeping }
         if locked { return .locked }
-        if lowPower { return .lowPower }
+        if lowPower && pauseOnLowPower { return .lowPower }
         if onBattery && pauseOnBattery { return .battery }
         if thermallyLimited { return .thermal }
         if reducedMotion { return .reducedMotion }

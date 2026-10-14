@@ -38,6 +38,7 @@ struct SettingsView: View {
             Form {
                 Section("省电设置") {
                     Toggle("电池供电时暂停", isOn: $model.pauseOnBattery)
+                    Toggle("低电量模式时暂停（插电时也生效）", isOn: $model.pauseOnLowPower)
                     Toggle("桌面大部分被遮挡时暂停", isOn: $model.pauseWhenCovered)
                     Picker("遮挡达到多少时暂停", selection: $model.coverageThreshold) {
                         Text("90% · 更省电").tag(0.90)
@@ -46,7 +47,7 @@ struct SettingsView: View {
                     }
                     .disabled(!model.pauseWhenCovered)
                     Toggle("所有显示器都播放", isOn: $model.allScreens)
-                    Text("默认只使用主显示器。低电量模式、温度过高、锁屏、休眠或系统开启“减少动态效果”时自动暂停。")
+                    Text("默认只使用主显示器。温度过高、锁屏、休眠或系统开启“减少动态效果”时自动暂停。关闭低电量模式暂停会增加能耗。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("通用") {

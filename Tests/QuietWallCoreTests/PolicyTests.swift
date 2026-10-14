@@ -33,6 +33,34 @@ final class PolicyTests: XCTestCase {
         XCTAssertEqual(policy.pauseReason, .manual)
     }
 
+    @objc func testLowPowerOnACCanBeAllowedExplicitly() {
+        var policy = PlaybackPolicy()
+        policy.hasVideo = true
+        policy.lowPower = true
+        XCTAssertEqual(policy.pauseReason, .lowPower)
+        policy.pauseOnLowPower = false
+        XCTAssertNil(policy.pauseReason)
+        policy.pauseOnLowPower = true
+        XCTAssertEqual(policy.pauseReason, .lowPower)
+    }
+
+    @objc func testLowPowerOptOutStillHonorsOtherPauseReasons() {
+        let cases: [(WritableKeyPath<PlaybackPolicy, Bool>, PauseReason)] = [
+            (\.onBattery, .battery), (\.thermallyLimited, .thermal),
+            (\.locked, .locked), (\.sleeping, .sleeping),
+            (\.manuallyPaused, .manual), (\.reducedMotion, .reducedMotion),
+            (\.covered, .covered)
+        ]
+        for (keyPath, reason) in cases {
+            var policy = PlaybackPolicy()
+            policy.hasVideo = true
+            policy.lowPower = true
+            policy.pauseOnLowPower = false
+            policy[keyPath: keyPath] = true
+            XCTAssertEqual(policy.pauseReason, reason)
+        }
+    }
+
     @objc func testWakeDoesNotBypassLockOrBatteryPolicy() {
         var policy = PlaybackPolicy()
         policy.hasVideo = true

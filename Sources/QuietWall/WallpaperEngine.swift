@@ -70,12 +70,18 @@ final class WallpaperEngine {
                                                    kCGNullWindowID) as? [[String: Any]],
               let primary = NSScreen.screens.first else { return false }
         let wallpaperIDs = Set(windows.map(\.windowNumber))
+        // Dock can own a screen-sized, visually transparent window with reported alpha 1.
+        // Identify it by bundle ID, since its owner name is localized (e.g. 程序坞).
+        let desktopShellPIDs = Set(NSRunningApplication.runningApplications(
+            withBundleIdentifier: "com.apple.dock").map(\.processIdentifier))
         let rects: [CGRect] = list.compactMap { item in
             guard let layer = item[kCGWindowLayer as String] as? Int,
                   let alpha = item[kCGWindowAlpha as String] as? Double,
                   let windowID = item[kCGWindowNumber as String] as? Int,
+                  let ownerPID = item[kCGWindowOwnerPID as String] as? Int32,
                   DesktopCoverage.canCoverDesktop(layer: layer, alpha: alpha,
-                                                   isWallpaper: wallpaperIDs.contains(windowID)),
+                                                   isWallpaper: wallpaperIDs.contains(windowID),
+                                                   isDesktopShell: desktopShellPIDs.contains(ownerPID)),
                   let bounds = item[kCGWindowBounds as String] as? [String: Any] else { return nil }
             return CGRect(dictionaryRepresentation: bounds as CFDictionary)
         }

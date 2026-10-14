@@ -8,8 +8,9 @@ public enum DesktopCoverage {
         [0.90, 0.95, 1.0].contains(value) ? value : defaultThreshold
     }
 
-    public static func canCoverDesktop(layer: Int, alpha: Double, isWallpaper: Bool) -> Bool {
-        !isWallpaper && layer >= 0 && alpha.isFinite && alpha >= 0.99
+    public static func canCoverDesktop(layer: Int, alpha: Double, isWallpaper: Bool,
+                                       isDesktopShell: Bool = false) -> Bool {
+        !isWallpaper && !isDesktopShell && layer >= 0 && alpha.isFinite && alpha >= 0.99
     }
 
     /// Subtract rectangles to measure their union without counting overlaps twice.

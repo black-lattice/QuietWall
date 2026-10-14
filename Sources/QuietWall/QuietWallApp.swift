@@ -52,8 +52,9 @@ private struct WallpaperMenuIcon: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        Image(systemName: model.errorMessage == nil ? "leaf" : "exclamationmark.triangle")
-            .accessibilityLabel(model.errorMessage == nil ? "QuietWall" : "QuietWall 有操作失败")
+        Image(systemName: model.errorMessage != nil ? "exclamationmark.triangle" :
+                (model.video != nil && !model.isPlaying ? "pause.circle" : "leaf"))
+            .accessibilityLabel("QuietWall：\(model.errorMessage ?? model.status)")
             .help(model.errorMessage ?? model.status)
     }
 }
@@ -64,6 +65,9 @@ private struct WallpaperMenu: View {
 
     var body: some View {
         Text(model.status)
+        if model.pausedForLowPower {
+            Button("允许低电量模式下播放") { model.pauseOnLowPower = false }
+        }
         if let video = model.video { Text(video.url.lastPathComponent) }
         if let error = model.errorMessage {
             Menu("操作失败 · 查看详情") {

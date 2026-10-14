@@ -94,4 +94,18 @@ final class CoverageTests: XCTestCase {
             XCTAssertEqual(DesktopCoverage.savedThreshold(value), value)
         }
     }
+
+    @objc func testFullScreenDockWindowDoesNotCoverDesktop() {
+        let windows: [(rect: CGRect, layer: Int, isDesktopShell: Bool)] = [
+            (screen, 20, true),
+            (CGRect(x: 0, y: 0, width: 600, height: 600), 3, false)
+        ]
+        let rects = windows.filter {
+            DesktopCoverage.canCoverDesktop(layer: $0.layer, alpha: 1, isWallpaper: false,
+                                            isDesktopShell: $0.isDesktopShell)
+        }.map(\.rect)
+        XCTAssertFalse(DesktopCoverage.isCovered(screen, by: rects))
+        // Ordinary applications at the same layer must still count.
+        XCTAssertTrue(DesktopCoverage.canCoverDesktop(layer: 20, alpha: 1, isWallpaper: false))
+    }
 }
