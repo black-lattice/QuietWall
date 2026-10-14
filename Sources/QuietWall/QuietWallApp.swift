@@ -52,10 +52,19 @@ private struct WallpaperMenuIcon: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        Image(systemName: model.errorMessage != nil ? "exclamationmark.triangle" :
-                (model.video != nil && !model.isPlaying ? "pause.circle" : "leaf"))
+        Image(nsImage: icon)
+            .renderingMode(.original)
             .accessibilityLabel("QuietWall：\(model.errorMessage ?? model.status)")
             .help(model.errorMessage ?? model.status)
+    }
+
+    private var icon: NSImage {
+        let color: NSColor = model.isPlaying ? .systemGreen : .systemGray
+        let image = NSImage(systemSymbolName: "leaf", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(paletteColors: [color])) ?? NSImage(size: NSSize(width: 18, height: 18))
+        // Preserve the status color instead of letting the menu bar tint a template image.
+        image.isTemplate = false
+        return image
     }
 }
 
