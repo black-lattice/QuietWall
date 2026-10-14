@@ -11,7 +11,7 @@ struct SettingsView: View {
                     .font(.system(size: 40)).foregroundStyle(.green)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("静境壁纸").font(.title2.bold())
+                    Text("QuietWall").font(.title2.bold())
                     Text("让桌面动起来，也让电池休息。")
                         .foregroundStyle(.secondary)
                 }
