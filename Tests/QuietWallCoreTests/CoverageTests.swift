@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 @testable import QuietWallCore
 
 final class CoverageTests: XCTestCase {

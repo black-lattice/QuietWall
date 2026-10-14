@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 public enum DesktopCoverage {
     public static let defaultThreshold = 0.95
