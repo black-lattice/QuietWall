@@ -27,6 +27,7 @@ else
     lipo -create "${binaries[@]}" -output "$app_path/Contents/MacOS/QuietWall"
 fi
 cp Resources/Info.plist "$app_path/Contents/Info.plist"
+cp Resources/AppIcon.icns "$app_path/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$app_path"
 codesign --verify --strict --verbose=2 "$app_path"
 lipo "$app_path/Contents/MacOS/QuietWall" -verify_arch "${architectures[@]}"
