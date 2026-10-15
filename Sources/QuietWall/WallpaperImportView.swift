@@ -2,53 +2,55 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 enum WallpaperSource: String, CaseIterable, Identifiable {
-    case local, remote
+    case local, remote, folder
     var id: String { rawValue }
-    var title: String { self == .local ? "本地文件" : "网络地址" }
+    var title: String {
+        switch self {
+        case .local: return "本地文件"
+        case .remote: return "网络地址"
+        case .folder: return "文件夹轮换"
+        }
+    }
 }
 
 struct WallpaperImportView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var rotation: WallpaperRotation
     @State private var isChoosingFile = false
+    @State private var isChoosingFolder = false
     @State private var remoteAddress = ""
     @State private var errorMessage: String?
     @State private var isDropTarget = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 24) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("添加壁纸").font(.headline)
-                    Text(isDropTarget ? "松开即可使用这张壁纸" : "选择图片或视频，也可以直接拖入这里")
-                        .font(.caption).foregroundStyle(.secondary)
+            Text("选择壁纸来源").font(.headline)
+            Picker("壁纸方式", selection: Binding(get: { model.wallpaperSource }, set: { source in
+                errorMessage = nil
+                model.wallpaperSource = source
+            })) {
+                ForEach(WallpaperSource.allCases) { source in
+                    Text(source.title).tag(source)
                 }
-                Spacer(minLength: 16)
-                HStack(spacing: 12) {
-                    Button {
-                        model.wallpaperSource = model.wallpaperSource == .remote ? .local : .remote
-                    } label: {
-                        Label(model.wallpaperSource == .remote ? "收起网络地址" : "网络地址",
-                              systemImage: model.wallpaperSource == .remote ? "chevron.up" : "link")
-                    }
-                    .buttonStyle(.bordered)
-                    if model.wallpaperSource == .local {
-                        localFileButton.buttonStyle(.borderedProminent)
-                    } else {
-                        localFileButton.buttonStyle(.bordered)
-                    }
-                }
-                .controlSize(.large).fixedSize()
             }
-            if model.wallpaperSource == .remote {
+            .pickerStyle(.segmented).labelsHidden().controlSize(.large)
+            Divider()
+            switch model.wallpaperSource {
+            case .local:
+                localContent
+            case .remote:
                 RemoteWallpaperView(model: model, address: $remoteAddress)
-                    .padding(16).wallpaperSurface()
+            case .folder:
+                folderContent
             }
-            if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle")
+            if let message = errorMessage {
+                Label(message, systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 4).padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20).wallpaperSurface()
         .background(isDropTarget ? WallpaperTheme.accent.opacity(0.06) : .clear,
                     in: RoundedRectangle(cornerRadius: WallpaperTheme.cornerRadius))
         .overlay(RoundedRectangle(cornerRadius: WallpaperTheme.cornerRadius)
@@ -57,11 +59,66 @@ struct WallpaperImportView: View {
         .onDrop(of: [UTType.fileURL], isTargeted: $isDropTarget, perform: receiveDrop)
     }
 
+    private var localContent: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 32)).foregroundStyle(WallpaperTheme.accent)
+                .accessibilityHidden(true)
+            Text(isDropTarget ? "松开即可使用壁纸" : "将图片或视频拖到这里")
+                .font(.callout.weight(.medium))
+            localFileButton.buttonStyle(.borderedProminent).controlSize(.large)
+            Text("自动识别图片和视频，本地文件保留在原位置。")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity).padding(.vertical, 24)
+    }
+
+    private var folderContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Button(action: chooseFolder) {
+                Label(rotation.folderURL == nil ? "选择文件夹…" : "更换文件夹…",
+                      systemImage: "folder.badge.gearshape")
+            }
+            .buttonStyle(.borderedProminent).controlSize(.large).disabled(isChoosingFolder)
+            .help("选择文件夹后，按设定周期自动轮换其中的图片和视频")
+            if rotation.folderURL == nil {
+                Text("选择一个存放图片或视频的文件夹，自动轮换其中的壁纸。")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            WallpaperRotationView(rotation: rotation)
+        }
+    }
+
     private var localFileButton: some View {
         Button(action: chooseLocalFile) {
-            Label("选择图片或视频…", systemImage: "folder")
+            Label("图片或视频…", systemImage: "photo.on.rectangle")
         }
         .disabled(model.isLoading || isChoosingFile)
+        .accessibilityLabel("选择本地图片或视频")
+    }
+
+    private func chooseFolder() {
+        guard !isChoosingFolder else { return }
+        let panel = NSOpenPanel()
+        panel.title = "选择壁纸文件夹"
+        panel.prompt = "开始轮换"
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        isChoosingFolder = true
+        let completion: (NSApplication.ModalResponse) -> Void = { response in
+            isChoosingFolder = false
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try rotation.chooseFolder(url)
+                errorMessage = nil
+            } catch { errorMessage = "无法使用这个文件夹，请检查访问权限。" }
+        }
+        if let window = NSApp.keyWindow { panel.beginSheetModal(for: window, completionHandler: completion) }
+        else { panel.begin(completionHandler: completion) }
     }
 
     private func chooseLocalFile() {

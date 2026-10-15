@@ -9,7 +9,7 @@ struct RemoteWallpaperView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("从网络添加", systemImage: "link").font(.callout.weight(.medium))
-            HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 12) {
                 TextField("https://… 图片或视频直链", text: $address)
                     .textFieldStyle(.roundedBorder)
                     .focused($addressFocused)
@@ -22,6 +22,7 @@ struct RemoteWallpaperView: View {
             }
             Text("输入图片或视频直链，自动识别类型；不支持网页或直播地址。")
                 .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.red)

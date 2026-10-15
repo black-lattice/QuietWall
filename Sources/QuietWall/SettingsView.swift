@@ -1,10 +1,22 @@
 import SwiftUI
 
 enum SettingsPage: String, CaseIterable, Identifiable {
-    case wallpapers, preferences
+    case wallpapers, sources, preferences
     var id: String { rawValue }
-    var title: String { self == .wallpapers ? "壁纸库" : "偏好设置" }
-    var symbol: String { self == .wallpapers ? "square.grid.2x2" : "slider.horizontal.3" }
+    var title: String {
+        switch self {
+        case .wallpapers: return "壁纸库"
+        case .sources: return "壁纸来源"
+        case .preferences: return "偏好设置"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .wallpapers: return "square.grid.2x2"
+        case .sources: return "photo.badge.plus"
+        case .preferences: return "slider.horizontal.3"
+        }
+    }
 }
 
 struct SettingsView: View {
@@ -18,7 +30,7 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.segmented).labelsHidden().controlSize(.large)
-            .frame(width: 280)
+            .frame(width: 390)
             .frame(maxWidth: .infinity)
             .overlay(alignment: .leading) {
                 Image(systemName: "leaf.fill")
@@ -40,17 +52,26 @@ struct SettingsView: View {
                 }
                 .padding(12).background(Color.orange.opacity(0.08))
             }
-            if model.settingsPage == .wallpapers {
+            switch model.settingsPage {
+            case .wallpapers, .sources:
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        WallpaperImportView(model: model)
-                        CurrentWallpaperView(model: model)
-                        WallpaperHistoryView(model: model, history: model.history)
+                        if model.settingsPage == .sources {
+                            HStack(alignment: .top, spacing: 24) {
+                                WallpaperSourcePreviewView(model: model)
+                                    .frame(maxWidth: .infinity)
+                                WallpaperImportView(model: model, rotation: model.rotation)
+                                    .frame(width: 400)
+                            }
+                        } else {
+                            CurrentWallpaperView(model: model)
+                            WallpaperHistoryView(model: model, history: model.history)
+                        }
                     }
                     .frame(maxWidth: WallpaperTheme.contentWidth)
                     .padding(24).frame(maxWidth: .infinity)
                 }
-            } else {
+            case .preferences:
                 PreferencesView(model: model)
             }
         }

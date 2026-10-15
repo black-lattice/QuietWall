@@ -13,16 +13,20 @@ struct CurrentWallpaperView: View {
                     .opacity(model.wallpaper == nil ? 0 : 1)
             }
             HStack(alignment: .top, spacing: 24) {
-                preview
+                WallpaperPreviewView(model: model)
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("壁纸信息").font(.caption).foregroundStyle(.secondary)
                         Text(model.wallpaper?.displayName ?? "还没有设置壁纸")
                             .font(.system(size: 15, weight: .semibold))
                             .lineLimit(1).truncationMode(.middle)
-                            .help(model.wallpaper?.displayName ?? "从上方添加图片或视频")
+                            .help(model.wallpaper?.displayName ?? "在“壁纸来源”中添加图片或视频")
                         Text(model.wallpaper?.details ?? "添加喜欢的图片或视频，开始布置桌面。")
                             .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if model.wallpaper == nil {
+                        Button("添加壁纸") { model.settingsPage = .sources }
+                            .buttonStyle(.borderedProminent)
                     }
                     PlaybackStatusView(model: model)
                     Divider()
@@ -58,37 +62,4 @@ struct CurrentWallpaperView: View {
         .padding(20).wallpaperSurface()
     }
 
-    private var preview: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Color.black
-                if let wallpaper = model.wallpaper {
-                    previewImage(wallpaper.poster)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                } else {
-                    VStack(spacing: 10) {
-                        Image(systemName: "photo.on.rectangle.angled").font(.system(size: 30))
-                        Text("你的下一幅风景").font(.callout)
-                    }
-                    .foregroundStyle(.white.opacity(0.65))
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .clipped().clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .frame(height: 280)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(model.wallpaper.map {
-            "壁纸预览：\($0.displayName)，\($0.details)，\(model.displayMode.title)"
-        } ?? "尚未选择壁纸")
-    }
-
-    @ViewBuilder
-    private func previewImage(_ image: CGImage) -> some View {
-        switch model.displayMode {
-        case .fill: Image(decorative: image, scale: 1).resizable().scaledToFill()
-        case .fit: Image(decorative: image, scale: 1).resizable().scaledToFit()
-        case .stretch: Image(decorative: image, scale: 1).resizable()
-        }
-    }
 }

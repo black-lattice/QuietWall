@@ -14,6 +14,7 @@ final class AppModel: ObservableObject {
     @Published var settingsPage: SettingsPage = .wallpapers
     @Published var wallpaperSource: WallpaperSource = .local
     let history = WallpaperHistory()
+    let rotation = WallpaperRotation()
     @Published var pauseOnBattery: Bool { didSet { saveOptions(); refresh() } }
     @Published var pauseOnLowPower: Bool { didSet { saveOptions(); refresh() } }
     @Published var pauseWhenCovered: Bool { didSet { saveOptions(); refresh() } }
@@ -51,28 +52,42 @@ final class AppModel: ObservableObject {
             self?.refresh()
         }
         engine.onScreensChanged = { [weak self] in self?.refresh() }
-        monitor.onChange = { [weak self] in self?.refresh() }
+        monitor.onChange = { [weak self] in
+            self?.refresh()
+            self?.rotation.resume()
+        }
+        rotation.canRotate = { [weak self] in
+            guard let self else { return false }
+            return !self.isLoading && !self.monitor.sleeping && !self.monitor.locked && !self.monitor.sessionInactive
+        }
+        rotation.apply = { [weak self] asset in try self?.applyWallpaper(asset) }
         monitor.start()
         refreshLoginStatus()
         restoreWallpaper()
+        rotation.resume()
     }
 
     func loadLocalWallpaper(_ address: String) throws {
-        loadWallpaper(try LocalWallpaper.url(from: address))
+        let url = try LocalWallpaper.url(from: address)
+        rotation.setEnabled(false)
+        loadWallpaper(url)
     }
 
     func loadRemoteWallpaper(_ address: String) throws {
         let url = try RemoteWallpaper.parseURL(address)
+        rotation.setEnabled(false)
         loadWallpaper(url)
     }
 
     func cancelLoading() {
+        rotation.setEnabled(false)
         loadTask?.cancel()
         loadID = UUID()
         isLoading = false
     }
 
     func useHistory(_ entry: WallpaperHistoryEntry) {
+        rotation.setEnabled(false)
         do {
             if let sourceURL = entry.sourceURL {
                 loadWallpaper(sourceURL, cachedURL: try? entry.resolvedFileURL())
@@ -102,6 +117,7 @@ final class AppModel: ObservableObject {
     }
 
     func removeWallpaper() {
+        rotation.setEnabled(false)
         loadTask?.cancel()
         loadID = UUID()
         isLoading = false
@@ -134,6 +150,7 @@ final class AppModel: ObservableObject {
     }
 
     func shutdown() {
+        rotation.shutdown()
         loadTask?.cancel()
         timer?.invalidate()
         monitor.stop()
@@ -157,25 +174,11 @@ final class AppModel: ObservableObject {
                     }
                 }
                 try Task.checkCancellation()
-                // Keep the previous wallpaper if validation or bookmark creation fails.
-                let bookmark = try loaded.url.bookmarkData(options: .minimalBookmark,
-                                                    includingResourceValuesForKeys: nil, relativeTo: nil)
                 guard let self, self.loadID == id else { return }
-                let historyUpdate = self.history.recordForUse(loaded, bookmark: bookmark)
-                self.playbackFailed = false
-                let previousURL = self.wallpaper?.url
-                self.engine.install(loaded, allScreens: self.allScreens)
-                self.wallpaper = loaded
+                try self.applyWallpaper(loaded, cachedURL: cachedURL)
                 installed = true
-                if let previousURL { self.removeUnusedCache(previousURL) }
-                if let cachedURL { self.removeUnusedCache(cachedURL) }
-                historyUpdate.discarded.forEach { self.removeUnusedCache($0.fileURL) }
-                self.defaults.set(loaded.sourceURL?.absoluteString, forKey: "wallpaperRemoteURL")
-                self.defaults.set(bookmark, forKey: "wallpaperBookmark")
-                self.defaults.removeObject(forKey: "videoBookmark")
                 self.isLoading = false
-                self.errorMessage = historyUpdate.warning
-                self.refresh()
+                self.rotation.resume()
             } catch is CancellationError {
                 return
             } catch {
@@ -183,8 +186,27 @@ final class AppModel: ObservableObject {
                 self.isLoading = false
                 self.errorMessage = error.localizedDescription
                 self.refresh()
+                self.rotation.resume()
             }
         }
+    }
+
+    private func applyWallpaper(_ loaded: WallpaperAsset, cachedURL: URL? = nil) throws {
+        let bookmark = try loaded.url.bookmarkData(options: .minimalBookmark,
+            includingResourceValuesForKeys: nil, relativeTo: nil)
+        let historyUpdate = history.recordForUse(loaded, bookmark: bookmark)
+        playbackFailed = false
+        let previousURL = wallpaper?.url
+        engine.install(loaded, allScreens: allScreens)
+        wallpaper = loaded
+        if let previousURL { removeUnusedCache(previousURL) }
+        if let cachedURL { removeUnusedCache(cachedURL) }
+        historyUpdate.discarded.forEach { removeUnusedCache($0.fileURL) }
+        defaults.set(loaded.sourceURL?.absoluteString, forKey: "wallpaperRemoteURL")
+        defaults.set(bookmark, forKey: "wallpaperBookmark")
+        defaults.removeObject(forKey: "videoBookmark")
+        errorMessage = historyUpdate.warning
+        refresh()
     }
 
     private func restoreWallpaper() {

@@ -36,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func showSettings() {
         model.refreshLoginStatus()
         if settingsWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 760),
+            let window = SettingsWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 760),
                                   styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                   backing: .buffered, defer: false)
             window.title = "QuietWall"
@@ -48,6 +48,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+}
+
+private final class SettingsWindow: NSWindow {
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown,
+           let editor = firstResponder as? NSTextView, editor.isEditable,
+           !editor.visibleRect.contains(editor.convert(event.locationInWindow, from: nil)) {
+            // End editing before dispatch so another input can still receive this click.
+            makeFirstResponder(nil)
+        }
+        super.sendEvent(event)
     }
 }
 
@@ -97,12 +109,12 @@ private struct WallpaperMenu: View {
         Button(model.manuallyPaused ? "恢复自动播放" : "手动暂停") { model.togglePause() }
             .disabled(model.wallpaper?.isVideo != true)
         Button("选择本地壁纸…") {
-            model.settingsPage = .wallpapers
+            model.settingsPage = .sources
             model.wallpaperSource = .local
             showSettings()
         }
         Button("添加网络壁纸…") {
-            model.settingsPage = .wallpapers
+            model.settingsPage = .sources
             model.wallpaperSource = .remote
             showSettings()
         }

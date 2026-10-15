@@ -28,18 +28,21 @@ let suite = XCTestSuite(name: "QuietWallCore")
 suite.addTest(PolicyTests.defaultTestSuite)
 suite.addTest(CoverageTests.defaultTestSuite)
 suite.addTest(SessionSnapshotTests.defaultTestSuite)
+suite.addTest(RotationScheduleTests.defaultTestSuite)
 suite.run()
-guard let result = suite.testRun, result.executionCount >= 30, result.hasSucceeded else { exit(1) }
+guard let result = suite.testRun, result.executionCount >= 35, result.hasSucceeded else { exit(1) }
 SWIFT
 xcrun swift -F "$test_frameworks" -I "$test_libraries" -L "$test_libraries" \
     -lXCTestSwiftSupport "$check_dir/core-tests.swift"
 
 # Exercise native image decoding with temporary generated fixtures; no app is launched.
-cat Sources/QuietWall/VideoAsset.swift Sources/QuietWall/WallpaperAsset.swift \
+cat Sources/QuietWallCore/RotationSchedule.swift Sources/QuietWall/VideoAsset.swift Sources/QuietWall/WallpaperAsset.swift \
     Sources/QuietWall/RemoteWallpaper.swift Sources/QuietWall/WallpaperHistory.swift \
-    Sources/QuietWall/LocalWallpaper.swift > "$check_dir/asset-tests.swift"
+    Sources/QuietWall/LocalWallpaper.swift Sources/QuietWall/WallpaperFolder.swift \
+    Sources/QuietWall/WallpaperRotation.swift > "$check_dir/asset-tests.swift"
+sed -i '' '/^import QuietWallCore$/d' "$check_dir/asset-tests.swift"
 for source in Tests/QuietWallTests/*.swift; do
-    sed '/^@testable import QuietWall$/d' "$source" >> "$check_dir/asset-tests.swift"
+    sed -e '/^@testable import QuietWall$/d' -e '/^import QuietWallCore$/d' "$source" >> "$check_dir/asset-tests.swift"
 done
 cat >> "$check_dir/asset-tests.swift" <<'SWIFT'
 let suite = XCTestSuite(name: "QuietWallAssets")
@@ -47,8 +50,9 @@ suite.addTest(WallpaperAssetTests.defaultTestSuite)
 suite.addTest(RemoteWallpaperTests.defaultTestSuite)
 suite.addTest(WallpaperHistoryTests.defaultTestSuite)
 suite.addTest(LocalWallpaperTests.defaultTestSuite)
+suite.addTest(WallpaperRotationTests.defaultTestSuite)
 suite.run()
-guard let result = suite.testRun, result.executionCount >= 31, result.hasSucceeded else { exit(1) }
+guard let result = suite.testRun, result.executionCount >= 40, result.hasSucceeded else { exit(1) }
 SWIFT
 xcrun swift -F "$test_frameworks" -I "$test_libraries" -L "$test_libraries" \
     -lXCTestSwiftSupport "$check_dir/asset-tests.swift"
