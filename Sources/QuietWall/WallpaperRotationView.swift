@@ -11,17 +11,17 @@ struct WallpaperRotationView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if let folder = rotation.folderURL {
+            if rotation.hasSource {
                 HStack(spacing: 16) {
                     Image(systemName: "folder.badge.gearshape")
                         .foregroundStyle(WallpaperTheme.accent).font(.title2).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("文件夹轮换 · \(folder.lastPathComponent)")
+                        Text(rotation.usesFavorites ? "收藏轮换" : "文件夹轮换 · \(rotation.folderURL?.lastPathComponent ?? "")")
                             .font(.callout.weight(.semibold)).lineLimit(1).truncationMode(.middle)
-                        Text(folder.path).font(.caption).foregroundStyle(.secondary)
+                        Text(rotation.usesFavorites ? "轮换已收藏的图片与视频" : (rotation.folderURL?.path ?? "")).font(.caption).foregroundStyle(.secondary)
                             .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
                     }
-                    .help(folder.path)
+                    .help(rotation.folderURL?.path ?? "收藏壁纸")
                     Spacer(minLength: 0)
                 }
                 Divider()
@@ -29,6 +29,12 @@ struct WallpaperRotationView: View {
                     settingRow("自动轮换") {
                         Toggle("自动轮换", isOn: Binding(get: { rotation.isEnabled }, set: rotation.setEnabled))
                             .toggleStyle(.switch).labelsHidden()
+                    }
+                    settingRow("轮换顺序") {
+                        Picker("轮换顺序", selection: Binding(get: { rotation.randomOrder }, set: rotation.setRandomOrder)) {
+                            Text("按顺序").tag(false)
+                            Text("随机不重复").tag(true)
+                        }.labelsHidden().fixedSize()
                     }
                     settingRow("轮换周期") {
                         Picker("轮换周期", selection: Binding(get: { rotation.schedule.period }, set: { period in
@@ -83,10 +89,10 @@ struct WallpaperRotationView: View {
                         ProgressView().controlSize(.small).accessibilityLabel("正在切换壁纸")
                     }
                     Button("下一张", action: rotation.next)
-                        .disabled(!rotation.isEnabled || rotation.isRotating)
+                        .disabled(!rotation.hasSource || rotation.isRotating)
                 }
             }
-            Text("按文件名顺序循环，不含子文件夹。手动选择单张壁纸会停止轮换；锁屏或休眠时延后。")
+            Text("按所选顺序循环，文件夹不含子文件夹。手动导入或使用历史会停止轮换；锁屏或休眠时延后。")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             if let message = errorMessage ?? rotation.message {
                 Label(message, systemImage: "exclamationmark.triangle")

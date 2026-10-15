@@ -3,16 +3,17 @@ import SwiftUI
 struct WallpaperHistoryView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var history: WallpaperHistory
+    var favoritesOnly = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Label("最近使用", systemImage: "clock.arrow.circlepath").font(.headline)
-                Text("\(history.entries.count) / \(WallpaperHistory.limit)").font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                Label(favoritesOnly ? "我的收藏" : "最近使用", systemImage: favoritesOnly ? "star" : "clock.arrow.circlepath").font(.headline)
+                Text(favoritesOnly ? "\(history.entries.count) 张" : "\(history.entries.count) / \(WallpaperHistory.limit)").font(.caption).monospacedDigit().foregroundStyle(.secondary)
                 Spacer()
                 Text("点击缩略图切换壁纸").font(.caption).foregroundStyle(.secondary)
             }
-            .help("保留最近 \(WallpaperHistory.limit) 张壁纸。本地壁纸需要保留原文件。")
+            .help(favoritesOnly ? "收藏独立保存，没有 50 条限制；本地原文件请保留。" : "保留最近 \(WallpaperHistory.limit) 张壁纸。本地壁纸需要保留原文件。")
             if let error = history.loadError {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .font(.callout).foregroundStyle(.red).textSelection(.enabled)
@@ -22,7 +23,7 @@ struct WallpaperHistoryView: View {
                     Image(systemName: "clock.arrow.circlepath").font(.title2).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 4) {
                         Text("喜欢的壁纸，都留在这里").font(.callout)
-                        Text("使用过的图片和视频会自动保存到历史。")
+                        Text(favoritesOnly ? "点击历史卡片上的星标收藏壁纸，不受历史条数限制。" : "使用过的图片和视频会自动保存到历史。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -34,7 +35,7 @@ struct WallpaperHistoryView: View {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 196, maximum: 280), spacing: 16)],
                           alignment: .leading, spacing: 18) {
                     ForEach(history.entries) { entry in
-                        WallpaperHistoryCard(model: model, entry: entry)
+                        WallpaperHistoryCard(model: model, entry: entry, favoritesOnly: favoritesOnly)
                     }
                 }
             }
@@ -45,6 +46,8 @@ struct WallpaperHistoryView: View {
 private struct WallpaperHistoryCard: View {
     @ObservedObject var model: AppModel
     let entry: WallpaperHistoryEntry
+    var favoritesOnly: Bool
+    @ObservedObject private var library = WallpaperLibrary.shared
     @State private var isHovered = false
 
     private var isCurrent: Bool { model.wallpaper.map { entry.matches($0) } ?? false }
@@ -88,13 +91,21 @@ private struct WallpaperHistoryCard: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .help("最近使用：\(entry.lastUsed.formatted(date: .abbreviated, time: .shortened))")
                 Spacer(minLength: 0)
-                Button { model.removeHistory(entry) } label: {
+                Button { model.toggleFavorite(entry) } label: {
+                    Image(systemName: library.contains(entry) ? "star.fill" : "star")
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(library.contains(entry) ? "取消收藏" : "收藏壁纸")
+                Button {
+                    if favoritesOnly { model.toggleFavorite(entry) } else { model.removeHistory(entry) }
+                } label: {
                     Image(systemName: "trash").font(.system(size: 11)).frame(width: 28, height: 28)
                 }
                 .buttonStyle(.borderless).foregroundStyle(.secondary)
                 .disabled(model.isLoading)
-                .accessibilityLabel("从历史移除：\(entry.name)")
-                .help("从历史移除，不删除本地原文件；未使用的网络缓存会清理")
+                .accessibilityLabel("\(favoritesOnly ? "取消收藏" : "从历史移除")：\(entry.name)")
+                .help(favoritesOnly ? "取消收藏，不删除原文件或历史" : "从历史移除，不删除本地原文件；未使用的网络缓存会清理")
             }
             .padding(.top, 4)
             Text(entry.lastUsed, format: .dateTime.month().day().hour().minute())

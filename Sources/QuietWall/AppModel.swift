@@ -5,39 +5,60 @@ import ServiceManagement
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published private(set) var wallpaper: WallpaperAsset?
-    @Published private(set) var isLoading = false
-    @Published private(set) var isPlaying = false
-    @Published private(set) var status = "请先选择图片或视频"
-    @Published private(set) var pausedForLowPower = false
+    @Published var wallpaper: WallpaperAsset?
+    @Published var isLoading = false
+    @Published var isPlaying = false
+    @Published var status = "请先选择图片或视频"
+    @Published var pausedForLowPower = false
     @Published var errorMessage: String?
     @Published var settingsPage: SettingsPage = .wallpapers
     @Published var wallpaperSource: WallpaperSource = .local
-    let history = WallpaperHistory()
-    let rotation = WallpaperRotation()
+    let history = WallpaperHistory.shared
+    let library = WallpaperLibrary.shared
+    let displayPreferences: WallpaperDisplayPreferences
+    var restoringDisplayMode = false
+    let rotation: WallpaperRotation
+    let automation: WallpaperAutomation
+    @Published var independentDisplay = false
+    @Published var displayKey: String?
+    var cacheIsInUse: ((URL) -> Bool)?
+    var targetScreen: NSScreen? { engine.targetScreens.first }
     @Published var pauseOnBattery: Bool { didSet { saveOptions(); refresh() } }
     @Published var pauseOnLowPower: Bool { didSet { saveOptions(); refresh() } }
     @Published var pauseWhenCovered: Bool { didSet { saveOptions(); refresh() } }
     @Published var coverageThreshold: Double { didSet { saveOptions(); refresh() } }
     @Published var displayMode: WallpaperDisplayMode {
-        didSet { saveOptions(); engine.setDisplayMode(displayMode) }
+        didSet {
+            saveOptions()
+            engine.setDisplayMode(displayMode)
+            if !restoringDisplayMode, let wallpaper {
+                displayPreferences.set(displayMode, for: wallpaper.sourceURL ?? wallpaper.url)
+            }
+        }
     }
     @Published var allScreens: Bool {
         didSet { saveOptions(); engine.setAllScreens(allScreens); refresh() }
     }
-    @Published private(set) var manuallyPaused: Bool
-    @Published private(set) var loginEnabled = false
-    @Published private(set) var loginNeedsApproval = false
+    @Published var manuallyPaused: Bool
+    @Published var loginEnabled = false
+    @Published var loginNeedsApproval = false
 
-    private let defaults = UserDefaults.standard
-    private let engine = WallpaperEngine()
+    let defaults: UserDefaults
+    let engine: WallpaperEngine
     private let monitor = SystemMonitor()
     private var timer: Timer?
-    private var loadTask: Task<Void, Never>?
-    private var loadID = UUID()
-    private var playbackFailed = false
+    var loadTask: Task<Void, Never>?
+    var loadID = UUID()
+    var playbackFailed = false
 
-    init() {
+    init(defaults: UserDefaults = .standard, displayKey: String? = nil) {
+        self.defaults = defaults
+        self.displayKey = displayKey
+        independentDisplay = displayKey != nil
+        engine = WallpaperEngine(displayKey: displayKey)
+        rotation = WallpaperRotation(defaults: defaults)
+        automation = WallpaperAutomation(defaults: defaults)
+        displayPreferences = WallpaperDisplayPreferences(defaults: defaults)
         pauseOnBattery = defaults.object(forKey: "pauseOnBattery") as? Bool ?? true
         pauseOnLowPower = defaults.object(forKey: "pauseOnLowPower") as? Bool ?? true
         pauseWhenCovered = defaults.object(forKey: "pauseWhenCovered") as? Bool ?? true
@@ -51,35 +72,56 @@ final class AppModel: ObservableObject {
             self?.errorMessage = message
             self?.refresh()
         }
-        engine.onScreensChanged = { [weak self] in self?.refresh() }
+        engine.onScreensChanged = { [weak self] in
+            self?.objectWillChange.send()
+            self?.refresh()
+            self?.rotation.resume()
+            self?.automation.resume()
+        }
         monitor.onChange = { [weak self] in
             self?.refresh()
             self?.rotation.resume()
+            self?.automation.resume()
         }
         rotation.canRotate = { [weak self] in
             guard let self else { return false }
-            return !self.isLoading && !self.monitor.sleeping && !self.monitor.locked && !self.monitor.sessionInactive
+            return !self.isLoading && self.targetScreen != nil && !self.engine.targetScreens.allSatisfy(DisplayIdentity.isAsleep) && !self.monitor.sleeping && !self.monitor.locked && !self.monitor.sessionInactive
         }
+        rotation.favoriteEntries = { [weak self] in self?.library.favorites.entries ?? [] }
         rotation.apply = { [weak self] asset in try self?.applyWallpaper(asset) }
+        rotation.manualSelection = { [weak self] in self?.automation.disableForManualSelection() }
+        automation.canApply = { [weak self] in self?.rotation.canRotate() ?? false }
+        automation.apply = { [weak self] target in
+            guard let self else { return }
+            do {
+                let url = try target.resolve()
+                if target.isFolder { try self.rotation.chooseFolder(url) }
+                else { self.rotation.setEnabled(false); self.loadWallpaper(url) }
+            } catch { self.errorMessage = "无法应用定时壁纸：\(error.localizedDescription)" }
+        }
         monitor.start()
         refreshLoginStatus()
         restoreWallpaper()
         rotation.resume()
+        automation.start()
     }
 
     func loadLocalWallpaper(_ address: String) throws {
+        automation.disableForManualSelection()
         let url = try LocalWallpaper.url(from: address)
         rotation.setEnabled(false)
         loadWallpaper(url)
     }
 
     func loadRemoteWallpaper(_ address: String) throws {
+        automation.disableForManualSelection()
         let url = try RemoteWallpaper.parseURL(address)
         rotation.setEnabled(false)
         loadWallpaper(url)
     }
 
     func cancelLoading() {
+        automation.disableForManualSelection()
         rotation.setEnabled(false)
         loadTask?.cancel()
         loadID = UUID()
@@ -87,6 +129,7 @@ final class AppModel: ObservableObject {
     }
 
     func useHistory(_ entry: WallpaperHistoryEntry) {
+        automation.disableForManualSelection()
         rotation.setEnabled(false)
         do {
             if let sourceURL = entry.sourceURL {
@@ -97,6 +140,14 @@ final class AppModel: ObservableObject {
         } catch { errorMessage = "历史壁纸无法访问，请重新选择原文件。" }
     }
 
+    func toggleFavorite(_ entry: WallpaperHistoryEntry) {
+        do {
+            try library.toggle(entry)
+            if !library.contains(entry) { removeUnusedCache(entry.fileURL) }
+        }
+        catch { errorMessage = "无法修改收藏：\(error.localizedDescription)" }
+    }
+
     func removeHistory(_ entry: WallpaperHistoryEntry) {
         do {
             try history.remove(entry)
@@ -104,8 +155,8 @@ final class AppModel: ObservableObject {
         } catch { errorMessage = "无法删除历史记录：\(error.localizedDescription)" }
     }
 
-    private func removeUnusedCache(_ url: URL) {
-        guard wallpaper?.url != url, !history.containsFile(url) else { return }
+    func removeUnusedCache(_ url: URL) {
+        guard wallpaper?.url != url, !history.containsFile(url), !library.favorites.containsFile(url), cacheIsInUse?(url) != true else { return }
         RemoteWallpaper.removeCachedFile(url)
     }
 
@@ -117,6 +168,7 @@ final class AppModel: ObservableObject {
     }
 
     func removeWallpaper() {
+        automation.disableForManualSelection()
         rotation.setEnabled(false)
         loadTask?.cancel()
         loadID = UUID()
@@ -150,6 +202,7 @@ final class AppModel: ObservableObject {
     }
 
     func shutdown() {
+        automation.shutdown()
         rotation.shutdown()
         loadTask?.cancel()
         timer?.invalidate()
@@ -157,86 +210,20 @@ final class AppModel: ObservableObject {
         engine.shutdown()
     }
 
-    private func loadWallpaper(_ url: URL, cachedURL: URL? = nil) {
-        loadTask?.cancel()
-        let id = UUID()
-        loadID = id
-        isLoading = true
-        errorMessage = nil
-        loadTask = Task { [weak self] in
-            do {
-                let loaded = try await url.isFileURL
-                    ? WallpaperAsset.load(url) : RemoteWallpaper.load(url, cachedURL: cachedURL)
-                var installed = false
-                defer {
-                    if !installed && loaded.sourceURL != nil && loaded.url != cachedURL {
-                        self?.removeUnusedCache(loaded.url)
-                    }
-                }
-                try Task.checkCancellation()
-                guard let self, self.loadID == id else { return }
-                try self.applyWallpaper(loaded, cachedURL: cachedURL)
-                installed = true
-                self.isLoading = false
-                self.rotation.resume()
-            } catch is CancellationError {
-                return
-            } catch {
-                guard let self, self.loadID == id else { return }
-                self.isLoading = false
-                self.errorMessage = error.localizedDescription
-                self.refresh()
-                self.rotation.resume()
-            }
-        }
-    }
-
-    private func applyWallpaper(_ loaded: WallpaperAsset, cachedURL: URL? = nil) throws {
-        let bookmark = try loaded.url.bookmarkData(options: .minimalBookmark,
-            includingResourceValuesForKeys: nil, relativeTo: nil)
-        let historyUpdate = history.recordForUse(loaded, bookmark: bookmark)
-        playbackFailed = false
-        let previousURL = wallpaper?.url
-        engine.install(loaded, allScreens: allScreens)
-        wallpaper = loaded
-        if let previousURL { removeUnusedCache(previousURL) }
-        if let cachedURL { removeUnusedCache(cachedURL) }
-        historyUpdate.discarded.forEach { removeUnusedCache($0.fileURL) }
-        defaults.set(loaded.sourceURL?.absoluteString, forKey: "wallpaperRemoteURL")
-        defaults.set(bookmark, forKey: "wallpaperBookmark")
-        defaults.removeObject(forKey: "videoBookmark")
-        errorMessage = historyUpdate.warning
+    func setTargetDisplay(_ key: String?) {
+        displayKey = key
+        independentDisplay = key != nil
+        engine.setTargetDisplay(key)
         refresh()
+        rotation.resume()
+        automation.resume()
     }
 
-    private func restoreWallpaper() {
-        if let address = defaults.string(forKey: "wallpaperRemoteURL"),
-           let remoteURL = try? RemoteWallpaper.parseURL(address) {
-            var stale = false
-            let cachedURL = defaults.data(forKey: "wallpaperBookmark").flatMap {
-                try? URL(resolvingBookmarkData: $0, options: .withoutUI,
-                         relativeTo: nil, bookmarkDataIsStale: &stale)
-            }
-            loadWallpaper(remoteURL, cachedURL: cachedURL)
-            return
-        }
-        guard let data = defaults.data(forKey: "wallpaperBookmark")
-            ?? defaults.data(forKey: "videoBookmark") else { return }
-        do {
-            var stale = false
-            let url = try URL(resolvingBookmarkData: data, options: .withoutUI,
-                              relativeTo: nil, bookmarkDataIsStale: &stale)
-            loadWallpaper(url)
-        } catch {
-            errorMessage = "上次的壁纸已移动或无法访问，请重新选择。"
-        }
-    }
-
-    private func refresh() {
+    func refresh() {
         var policy = PlaybackPolicy()
-        policy.hasVideo = wallpaper?.isVideo == true
+        policy.hasVideo = wallpaper?.isVideo == true && targetScreen != nil
         policy.manuallyPaused = manuallyPaused
-        policy.sleeping = monitor.sleeping
+        policy.sleeping = monitor.sleeping || engine.targetScreens.allSatisfy(DisplayIdentity.isAsleep)
         policy.locked = monitor.locked || monitor.sessionInactive
         policy.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
         policy.pauseOnLowPower = pauseOnLowPower

@@ -29,17 +29,20 @@ suite.addTest(PolicyTests.defaultTestSuite)
 suite.addTest(CoverageTests.defaultTestSuite)
 suite.addTest(SessionSnapshotTests.defaultTestSuite)
 suite.addTest(RotationScheduleTests.defaultTestSuite)
+suite.addTest(RotationSequenceTests.defaultTestSuite)
+suite.addTest(DayNightScheduleTests.defaultTestSuite)
 suite.run()
-guard let result = suite.testRun, result.executionCount >= 35, result.hasSucceeded else { exit(1) }
+guard let result = suite.testRun, result.executionCount >= 42, result.hasSucceeded else { exit(1) }
 SWIFT
 xcrun swift -F "$test_frameworks" -I "$test_libraries" -L "$test_libraries" \
     -lXCTestSwiftSupport "$check_dir/core-tests.swift"
 
 # Exercise native image decoding with temporary generated fixtures; no app is launched.
-cat Sources/QuietWallCore/RotationSchedule.swift Sources/QuietWall/VideoAsset.swift Sources/QuietWall/WallpaperAsset.swift \
+cat Sources/QuietWallCore/RotationSchedule.swift Sources/QuietWallCore/RotationSequence.swift Sources/QuietWallCore/DayNightSchedule.swift Sources/QuietWall/VideoAsset.swift Sources/QuietWall/WallpaperAsset.swift \
     Sources/QuietWall/RemoteWallpaper.swift Sources/QuietWall/WallpaperHistory.swift \
     Sources/QuietWall/LocalWallpaper.swift Sources/QuietWall/WallpaperFolder.swift \
-    Sources/QuietWall/WallpaperRotation.swift > "$check_dir/asset-tests.swift"
+    Sources/QuietWall/WallpaperRotation.swift Sources/QuietWall/WallpaperDisplayMode.swift \
+    Sources/QuietWall/WallpaperLibrary.swift Sources/QuietWall/WallpaperAutomation.swift > "$check_dir/asset-tests.swift"
 sed -i '' '/^import QuietWallCore$/d' "$check_dir/asset-tests.swift"
 for source in Tests/QuietWallTests/*.swift; do
     sed -e '/^@testable import QuietWall$/d' -e '/^import QuietWallCore$/d' "$source" >> "$check_dir/asset-tests.swift"
@@ -51,8 +54,10 @@ suite.addTest(RemoteWallpaperTests.defaultTestSuite)
 suite.addTest(WallpaperHistoryTests.defaultTestSuite)
 suite.addTest(LocalWallpaperTests.defaultTestSuite)
 suite.addTest(WallpaperRotationTests.defaultTestSuite)
+suite.addTest(WallpaperLibraryTests.defaultTestSuite)
+suite.addTest(WallpaperAutomationTests.defaultTestSuite)
 suite.run()
-guard let result = suite.testRun, result.executionCount >= 40, result.hasSucceeded else { exit(1) }
+guard let result = suite.testRun, result.executionCount >= 49, result.hasSucceeded else { exit(1) }
 SWIFT
 xcrun swift -F "$test_frameworks" -I "$test_libraries" -L "$test_libraries" \
     -lXCTestSwiftSupport "$check_dir/asset-tests.swift"

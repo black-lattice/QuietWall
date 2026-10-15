@@ -204,6 +204,67 @@ final class WallpaperRotationTests: XCTestCase {
     }
 
     @MainActor
+    func testGridSelectionAndNavigationWhilePaused() async throws {
+        let first = try makeImage("1")
+        let second = try makeImage("2")
+        let rotation = WallpaperRotation(defaults: defaults)
+        defer { rotation.shutdown() }
+        var used: [URL] = []
+        rotation.apply = { used.append($0.url) }
+        try rotation.chooseFolder(directory)
+        await settle(rotation)
+        rotation.setEnabled(false)
+        rotation.select(second)
+        await settle(rotation)
+        XCTAssertEqual(used.last?.resolvingSymlinksInPath(), second.resolvingSymlinksInPath())
+        XCTAssertFalse(rotation.isEnabled)
+        rotation.previous()
+        await settle(rotation)
+        XCTAssertEqual(used.last?.resolvingSymlinksInPath(), first.resolvingSymlinksInPath())
+        rotation.next()
+        await settle(rotation)
+        XCTAssertEqual(used.last?.resolvingSymlinksInPath(), second.resolvingSymlinksInPath())
+    }
+
+    @MainActor
+    func testRandomBadFileDoesNotStallFollowingCycles() async throws {
+        _ = try makeImage("1")
+        _ = try makeImage("2")
+        try Data("broken".utf8).write(to: directory.appendingPathComponent("bad.png"))
+        let rotation = WallpaperRotation(defaults: defaults)
+        defer { rotation.shutdown() }
+        var applied = 0
+        rotation.apply = { _ in applied += 1 }
+        rotation.setRandomOrder(true)
+        try rotation.chooseFolder(directory)
+        await settle(rotation)
+        for _ in 0..<8 { rotation.next(); await settle(rotation) }
+        XCTAssertEqual(applied, 9)
+    }
+
+    @MainActor
+    func testFavoriteRotationAndDisplayProfilesAreIndependent() async throws {
+        let url = try makeImage("1")
+        let bookmark = try url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil)
+        let entry = WallpaperHistoryEntry(id: UUID(), fileURL: url, bookmark: bookmark, sourceURL: nil,
+            name: "favorite", details: "test", isVideo: false, lastUsed: Date(), thumbnail: nil)
+        let otherSuite = "QuietWallRotationTests.\(UUID())"
+        let otherDefaults = UserDefaults(suiteName: otherSuite)!
+        defer { otherDefaults.removePersistentDomain(forName: otherSuite) }
+        let a = WallpaperRotation(defaults: defaults), b = WallpaperRotation(defaults: otherDefaults)
+        defer { a.shutdown(); b.shutdown() }
+        var used = 0
+        a.favoriteEntries = { [entry] }
+        a.apply = { _ in used += 1 }
+        a.chooseFavorites()
+        await settle(a)
+        XCTAssertEqual(used, 1)
+        XCTAssertFalse(b.isEnabled)
+        XCTAssertTrue(WallpaperRotation(defaults: defaults).usesFavorites)
+        XCTAssertFalse(WallpaperRotation(defaults: otherDefaults).usesFavorites)
+    }
+
+    @MainActor
     private func settle(_ rotation: WallpaperRotation) async {
         for _ in 0..<400 {
             if !rotation.isRotating { return }

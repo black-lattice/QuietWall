@@ -6,9 +6,9 @@ struct QuietWallApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            WallpaperMenu(model: delegate.model, showSettings: delegate.showSettings)
+            DisplayMenu(displays: delegate.displays, showSettings: delegate.showSettings)
         } label: {
-            WallpaperMenuIcon(model: delegate.model)
+            DisplayMenuIcon(displays: delegate.displays)
         }
         .menuBarExtraStyle(.menu)
     }
@@ -16,7 +16,8 @@ struct QuietWallApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let model = AppModel()
+    let displays = DisplayManager()
+    var model: AppModel { displays.selected }
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -31,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    func applicationWillTerminate(_ notification: Notification) { model.shutdown() }
+    func applicationWillTerminate(_ notification: Notification) { displays.shutdown() }
 
     func showSettings() {
         model.refreshLoginStatus()
@@ -42,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.title = "QuietWall"
             window.isReleasedWhenClosed = false
             window.contentMinSize = NSSize(width: 900, height: 680)
-            window.contentView = NSHostingView(rootView: SettingsView(model: model))
+            window.contentView = NSHostingView(rootView: DisplayWorkspaceView(displays: displays))
             window.center()
             settingsWindow = window
         }
@@ -63,7 +64,7 @@ private final class SettingsWindow: NSWindow {
     }
 }
 
-private struct WallpaperMenuIcon: View {
+struct WallpaperMenuIcon: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
@@ -83,7 +84,7 @@ private struct WallpaperMenuIcon: View {
     }
 }
 
-private struct WallpaperMenu: View {
+struct WallpaperMenu: View {
     @ObservedObject var model: AppModel
     let showSettings: () -> Void
 
@@ -108,6 +109,8 @@ private struct WallpaperMenu: View {
         }
         Button(model.manuallyPaused ? "恢复自动播放" : "手动暂停") { model.togglePause() }
             .disabled(model.wallpaper?.isVideo != true)
+        RotationMenu(rotation: model.rotation)
+        Divider()
         Button("选择本地壁纸") {
             model.settingsPage = .sources
             model.wallpaperSource = .local

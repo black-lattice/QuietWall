@@ -37,7 +37,10 @@ struct WallpaperSourcePreviewView: View {
 struct WallpaperPreviewView: View {
     @ObservedObject var model: AppModel
     var maximumSize: CGSize?
-    @State private var displayAspectRatio = primaryDisplayAspectRatio
+    private var displayAspectRatio: CGFloat {
+        guard let size = model.targetScreen?.frame.size, size.width > 0, size.height > 0 else { return 16.0 / 9.0 }
+        return size.width / size.height
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -59,22 +62,11 @@ struct WallpaperPreviewView: View {
         }
         .aspectRatio(displayAspectRatio, contentMode: .fit)
         .frame(maxWidth: maximumSize.map { min($0.width, $0.height * displayAspectRatio) })
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
-            displayAspectRatio = Self.primaryDisplayAspectRatio
-        }
-        .help("按主显示器比例预览")
+        .help("按当前目标显示器比例预览")
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(model.wallpaper.map {
             "壁纸预览：\($0.displayName)，\($0.details)，\(model.displayMode.title)"
         } ?? "尚未选择壁纸")
-    }
-
-    private static var primaryDisplayAspectRatio: CGFloat {
-        // Match the wallpaper engine's primary target and include the menu bar/Dock area.
-        guard let size = NSScreen.screens.first?.frame.size, size.width > 0, size.height > 0 else {
-            return 16.0 / 9.0
-        }
-        return size.width / size.height
     }
 
     @ViewBuilder

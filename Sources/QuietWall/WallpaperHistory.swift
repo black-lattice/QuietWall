@@ -29,12 +29,16 @@ struct WallpaperHistoryEntry: Codable, Identifiable {
 @MainActor
 final class WallpaperHistory: ObservableObject {
     static let limit = 50
+    static let shared = WallpaperHistory()
     @Published private(set) var entries: [WallpaperHistoryEntry] = []
     private(set) var loadError: String?
     private let fileURL: URL
+    private let maximumCount: Int
 
-    init(directory: URL = RemoteWallpaper.cacheDirectory.deletingLastPathComponent()) {
-        fileURL = directory.appendingPathComponent("wallpaper-history.json")
+    init(directory: URL = RemoteWallpaper.cacheDirectory.deletingLastPathComponent(),
+         filename: String = "wallpaper-history.json", maximumCount: Int = 50) {
+        self.maximumCount = maximumCount
+        fileURL = directory.appendingPathComponent(filename)
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
         do { entries = try JSONDecoder().decode([WallpaperHistoryEntry].self, from: Data(contentsOf: fileURL)) }
         catch { loadError = "无法读取壁纸历史：\(error.localizedDescription)" }
@@ -49,7 +53,7 @@ final class WallpaperHistory: ObservableObject {
             sourceURL: wallpaper.sourceURL, name: wallpaper.displayName, details: wallpaper.details,
             isVideo: wallpaper.isVideo, lastUsed: now, thumbnail: Self.thumbnail(wallpaper.poster)
         )
-        let updated = Array(([entry] + entries.filter { !$0.matches(wallpaper) }).prefix(Self.limit))
+        let updated = Array(([entry] + entries.filter { !$0.matches(wallpaper) }).prefix(maximumCount))
         let discarded = entries.filter { old in
             !updated.contains { $0.id == old.id && $0.fileURL == old.fileURL }
         }
@@ -65,6 +69,14 @@ final class WallpaperHistory: ObservableObject {
 
     func remove(_ entry: WallpaperHistoryEntry) throws {
         try save(entries.filter { $0.id != entry.id })
+    }
+
+    func add(_ entry: WallpaperHistoryEntry) throws {
+        let updated = [entry] + entries.filter {
+            if entry.sourceURL != nil { return $0.sourceURL != entry.sourceURL }
+            return $0.fileURL.standardizedFileURL != entry.fileURL.standardizedFileURL
+        }
+        try save(Array(updated.prefix(maximumCount)))
     }
 
     func containsFile(_ url: URL) -> Bool {

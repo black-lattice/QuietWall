@@ -39,7 +39,7 @@ struct CurrentWallpaperView: View {
                         Text(model.displayMode.explanation)
                             .font(.caption).foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
-                        Toggle("应用到所有显示器", isOn: $model.allScreens).font(.callout)
+                        if !model.independentDisplay { Toggle("应用到所有显示器", isOn: $model.allScreens).font(.callout) }
                     }
                     HStack(spacing: 8) {
                         if model.wallpaper?.isVideo == true {

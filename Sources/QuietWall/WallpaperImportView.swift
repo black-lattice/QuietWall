@@ -16,6 +16,7 @@ enum WallpaperSource: String, CaseIterable, Identifiable {
 struct WallpaperImportView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var rotation: WallpaperRotation
+    @ObservedObject private var library = WallpaperLibrary.shared
     @State private var isChoosingFile = false
     @State private var isChoosingFolder = false
     @State private var remoteAddress = ""
@@ -83,7 +84,12 @@ struct WallpaperImportView: View {
             }
             .buttonStyle(.borderedProminent).controlSize(.large).disabled(isChoosingFolder)
             .help("选择文件夹后，按设定周期自动轮换其中的图片和视频")
-            if rotation.folderURL == nil {
+            Button("轮换收藏壁纸") {
+                model.automation.disableForManualSelection()
+                rotation.chooseFavorites()
+            }
+                .disabled(library.favorites.entries.isEmpty)
+            if !rotation.hasSource {
                 Text("选择一个存放图片或视频的文件夹，自动轮换其中的壁纸。")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -113,6 +119,7 @@ struct WallpaperImportView: View {
             isChoosingFolder = false
             guard response == .OK, let url = panel.url else { return }
             do {
+                model.automation.disableForManualSelection()
                 try rotation.chooseFolder(url)
                 errorMessage = nil
             } catch { errorMessage = "无法使用这个文件夹，请检查访问权限。" }

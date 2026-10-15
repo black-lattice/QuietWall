@@ -63,9 +63,12 @@ struct SettingsView: View {
                                 WallpaperImportView(model: model, rotation: model.rotation)
                                     .frame(width: 400)
                             }
+                            if model.wallpaperSource == .folder {
+                                FolderSourceGrid(model: model, rotation: model.rotation)
+                            }
                         } else {
                             CurrentWallpaperView(model: model)
-                            WallpaperHistoryView(model: model, history: model.history)
+                            WallpaperCollectionView(model: model)
                         }
                     }
                     .frame(maxWidth: WallpaperTheme.contentWidth)

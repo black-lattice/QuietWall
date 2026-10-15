@@ -49,6 +49,11 @@ struct PreferencesView: View {
                     Label("桌面可见性", systemImage: "macwindow.on.rectangle")
                 }
                 Section {
+                    WallpaperAutomationView(automation: model.automation)
+                } header: {
+                    Label("定时切换", systemImage: "sun.max")
+                }
+                Section {
                     Toggle("登录时启动 QuietWall", isOn: Binding(get: { model.loginEnabled }, set: model.setLoginEnabled))
                     if model.loginNeedsApproval {
                         Button("前往系统设置允许开机启动") { SMAppService.openSystemSettingsLoginItems() }

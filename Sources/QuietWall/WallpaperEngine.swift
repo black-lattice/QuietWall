@@ -15,8 +15,10 @@ final class WallpaperEngine {
     private var allScreens = false
     private var displayMode: WallpaperDisplayMode = .fill
     private var generation = UUID()
+    private var displayKey: String?
 
-    init() {
+    init(displayKey: String? = nil) {
+        self.displayKey = displayKey
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -55,6 +57,11 @@ final class WallpaperEngine {
         rebuildWindows()
     }
 
+    func setTargetDisplay(_ key: String?) {
+        displayKey = key
+        rebuildWindows()
+    }
+
     func setAllScreens(_ enabled: Bool) {
         allScreens = enabled
         rebuildWindows()
@@ -66,7 +73,7 @@ final class WallpaperEngine {
     }
 
     func setPlaying(_ playing: Bool) {
-        if playing {
+        if playing && !windows.isEmpty {
             if player?.rate == 0 { player?.play() }
         } else {
             player?.pause()
@@ -123,8 +130,9 @@ final class WallpaperEngine {
         screenObserver = nil
     }
 
-    private var targetScreens: [NSScreen] {
-        allScreens ? NSScreen.screens : Array(NSScreen.screens.prefix(1))
+    var targetScreens: [NSScreen] {
+        if let displayKey { return NSScreen.screens.filter { DisplayIdentity.key($0) == displayKey } }
+        return allScreens ? NSScreen.screens : Array(NSScreen.screens.prefix(1))
     }
 
     private func rebuildWindows() {
