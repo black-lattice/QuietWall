@@ -6,10 +6,10 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class AppModel: ObservableObject {
-    @Published private(set) var video: VideoAsset?
+    @Published private(set) var wallpaper: WallpaperAsset?
     @Published private(set) var isLoading = false
     @Published private(set) var isPlaying = false
-    @Published private(set) var status = PauseReason.noVideo.rawValue
+    @Published private(set) var status = "请先选择图片或视频"
     @Published private(set) var pausedForLowPower = false
     @Published var errorMessage: String?
     @Published var pauseOnBattery: Bool { didSet { saveOptions(); refresh() } }
@@ -47,36 +47,38 @@ final class AppModel: ObservableObject {
         monitor.onChange = { [weak self] in self?.refresh() }
         monitor.start()
         refreshLoginStatus()
-        restoreVideo()
+        restoreWallpaper()
     }
 
-    func chooseVideo() {
+    func chooseWallpaper() {
         let panel = NSOpenPanel()
-        panel.title = "选择本地壁纸视频"
-        panel.allowedContentTypes = [.mpeg4Movie, .quickTimeMovie, .movie]
+        panel.title = "选择本地壁纸图片或视频"
+        panel.allowedContentTypes = [.image, .mpeg4Movie, .quickTimeMovie, .movie]
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         NSApp.activate(ignoringOtherApps: true)
         panel.begin { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
-            Task { @MainActor in self?.loadVideo(url) }
+            Task { @MainActor in self?.loadWallpaper(url) }
         }
     }
 
     func togglePause() {
+        guard wallpaper?.isVideo == true else { return }
         manuallyPaused.toggle()
         defaults.set(manuallyPaused, forKey: "manuallyPaused")
         refresh()
     }
 
-    func removeVideo() {
+    func removeWallpaper() {
         loadTask?.cancel()
         loadID = UUID()
         isLoading = false
         engine.clear()
-        video = nil
+        wallpaper = nil
         playbackFailed = false
         errorMessage = nil
+        defaults.removeObject(forKey: "wallpaperBookmark")
         defaults.removeObject(forKey: "videoBookmark")
         refresh()
     }
@@ -104,7 +106,7 @@ final class AppModel: ObservableObject {
         engine.shutdown()
     }
 
-    private func loadVideo(_ url: URL) {
+    private func loadWallpaper(_ url: URL) {
         loadTask?.cancel()
         let id = UUID()
         loadID = id
@@ -112,7 +114,7 @@ final class AppModel: ObservableObject {
         errorMessage = nil
         loadTask = Task { [weak self] in
             do {
-                let loaded = try await VideoAsset.load(url)
+                let loaded = try await WallpaperAsset.load(url)
                 try Task.checkCancellation()
                 // Keep the previous wallpaper if validation or bookmark creation fails.
                 let bookmark = try url.bookmarkData(options: .minimalBookmark,
@@ -120,8 +122,9 @@ final class AppModel: ObservableObject {
                 guard let self, self.loadID == id else { return }
                 self.playbackFailed = false
                 self.engine.install(loaded, allScreens: self.allScreens)
-                self.video = loaded
-                self.defaults.set(bookmark, forKey: "videoBookmark")
+                self.wallpaper = loaded
+                self.defaults.set(bookmark, forKey: "wallpaperBookmark")
+                self.defaults.removeObject(forKey: "videoBookmark")
                 self.isLoading = false
                 self.refresh()
             } catch is CancellationError {
@@ -135,21 +138,22 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func restoreVideo() {
-        guard let data = defaults.data(forKey: "videoBookmark") else { return }
+    private func restoreWallpaper() {
+        guard let data = defaults.data(forKey: "wallpaperBookmark")
+            ?? defaults.data(forKey: "videoBookmark") else { return }
         do {
             var stale = false
             let url = try URL(resolvingBookmarkData: data, options: .withoutUI,
                               relativeTo: nil, bookmarkDataIsStale: &stale)
-            loadVideo(url)
+            loadWallpaper(url)
         } catch {
-            errorMessage = "上次的视频已移动或无法访问，请重新选择。"
+            errorMessage = "上次的壁纸已移动或无法访问，请重新选择。"
         }
     }
 
     private func refresh() {
         var policy = PlaybackPolicy()
-        policy.hasVideo = video != nil
+        policy.hasVideo = wallpaper?.isVideo == true
         policy.manuallyPaused = manuallyPaused
         policy.sleeping = monitor.sleeping
         policy.locked = monitor.locked || monitor.sessionInactive
@@ -170,7 +174,14 @@ final class AppModel: ObservableObject {
         let pausedForLowPower = !playbackFailed && policy.pauseReason == .lowPower
         if self.pausedForLowPower != pausedForLowPower { self.pausedForLowPower = pausedForLowPower }
         if isPlaying != playing { isPlaying = playing }
-        let message = playbackFailed ? "播放失败，请重新选择视频" : (policy.pauseReason?.rawValue ?? "正在播放 · 静音循环")
+        let message: String
+        if let wallpaper, !wallpaper.isVideo {
+            message = "正在显示 · 静态壁纸"
+        } else if wallpaper == nil {
+            message = "请先选择图片或视频"
+        } else {
+            message = playbackFailed ? "播放失败，请重新选择视频" : (policy.pauseReason?.rawValue ?? "正在播放 · 静音循环")
+        }
         if status != message { status = message }
         updateTimer(enabled: canCheckCoverage && pauseWhenCovered)
     }

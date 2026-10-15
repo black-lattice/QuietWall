@@ -33,6 +33,17 @@ guard let result = suite.testRun, result.executionCount >= 30, result.hasSucceed
 SWIFT
 xcrun swift -F "$test_frameworks" -I "$test_libraries" -L "$test_libraries" \
     -lXCTestSwiftSupport "$check_dir/core-tests.swift"
+
+# Exercise native image decoding with temporary generated fixtures; no app is launched.
+cat Sources/QuietWall/VideoAsset.swift Sources/QuietWall/WallpaperAsset.swift > "$check_dir/asset-tests.swift"
+sed '/^@testable import QuietWall$/d' Tests/QuietWallTests/WallpaperAssetTests.swift >> "$check_dir/asset-tests.swift"
+cat >> "$check_dir/asset-tests.swift" <<'SWIFT'
+let suite = WallpaperAssetTests.defaultTestSuite
+suite.run()
+guard let result = suite.testRun, result.executionCount >= 6, result.hasSucceeded else { exit(1) }
+SWIFT
+xcrun swift -F "$test_frameworks" -I "$test_libraries" -L "$test_libraries" \
+    -lXCTestSwiftSupport "$check_dir/asset-tests.swift"
 plutil -lint Resources/Info.plist
 bash -n scripts/package.sh
 git diff --check

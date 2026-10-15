@@ -8,6 +8,7 @@ let package = Package(
     targets: [
         .target(name: "QuietWallCore"),
         .executableTarget(name: "QuietWall", dependencies: ["QuietWallCore"]),
-        .testTarget(name: "QuietWallCoreTests", dependencies: ["QuietWallCore"])
+        .testTarget(name: "QuietWallCoreTests", dependencies: ["QuietWallCore"]),
+        .testTarget(name: "QuietWallTests", dependencies: ["QuietWall"])
     ]
 )

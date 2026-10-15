@@ -2,9 +2,7 @@ import AppKit
 import AVFoundation
 
 final class WallpaperWindow: NSWindow {
-    let playerLayer = AVPlayerLayer()
-
-    init(screen: NSScreen, player: AVPlayer, poster: CGImage?) {
+    init(screen: NSScreen, player: AVPlayer?, poster: CGImage?) {
         super.init(contentRect: screen.frame, styleMask: .borderless,
                    backing: .buffered, defer: false)
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1)
@@ -18,11 +16,14 @@ final class WallpaperWindow: NSWindow {
         view.layer?.contents = poster
         view.layer?.contentsGravity = .resizeAspectFill
         view.layer?.masksToBounds = true
-        playerLayer.player = player
-        playerLayer.videoGravity = .resizeAspectFill
-        playerLayer.frame = view.bounds
-        playerLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        view.layer?.addSublayer(playerLayer)
+        if let player {
+            let playerLayer = AVPlayerLayer()
+            playerLayer.player = player
+            playerLayer.videoGravity = .resizeAspectFill
+            playerLayer.frame = view.bounds
+            playerLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+            view.layer?.addSublayer(playerLayer)
+        }
         contentView = view
         setFrame(screen.frame, display: true)
         orderBack(nil)

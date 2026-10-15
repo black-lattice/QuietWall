@@ -11,7 +11,7 @@ final class WallpaperEngine {
     private var looper: AVPlayerLooper?
     private var failureObservation: NSKeyValueObservation?
     private var screenObserver: NSObjectProtocol?
-    private var video: VideoAsset?
+    private var wallpaper: WallpaperAsset?
     private var allScreens = false
     private var generation = UUID()
 
@@ -26,10 +26,14 @@ final class WallpaperEngine {
         }
     }
 
-    func install(_ video: VideoAsset, allScreens: Bool) {
+    func install(_ wallpaper: WallpaperAsset, allScreens: Bool) {
         clear()
-        self.video = video
+        self.wallpaper = wallpaper
         self.allScreens = allScreens
+        guard let video = wallpaper.video else {
+            rebuildWindows()
+            return
+        }
         let player = AVQueuePlayer()
         player.isMuted = true
         player.allowsExternalPlayback = false
@@ -102,7 +106,7 @@ final class WallpaperEngine {
         looper = nil
         player?.removeAllItems()
         player = nil
-        video = nil
+        wallpaper = nil
         windows.forEach { $0.close() }
         windows.removeAll()
     }
@@ -120,7 +124,7 @@ final class WallpaperEngine {
     private func rebuildWindows() {
         windows.forEach { $0.close() }
         windows.removeAll()
-        guard let player, let video else { return }
-        windows = targetScreens.map { WallpaperWindow(screen: $0, player: player, poster: video.poster) }
+        guard let wallpaper else { return }
+        windows = targetScreens.map { WallpaperWindow(screen: $0, player: player, poster: wallpaper.poster) }
     }
 }
