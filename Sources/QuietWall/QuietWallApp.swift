@@ -96,7 +96,7 @@ private struct WallpaperMenu: View {
         if let error = model.errorMessage {
             Menu("操作失败 · 查看详情") {
                 Text(error)
-                Button("打开设置处理…", action: showSettings)
+                Button("打开设置处理", action: showSettings)
                 Button("忽略此提示") { model.errorMessage = nil }
             }
         }
@@ -108,22 +108,22 @@ private struct WallpaperMenu: View {
         }
         Button(model.manuallyPaused ? "恢复自动播放" : "手动暂停") { model.togglePause() }
             .disabled(model.wallpaper?.isVideo != true)
-        Button("选择本地壁纸…") {
+        Button("选择本地壁纸") {
             model.settingsPage = .sources
             model.wallpaperSource = .local
             showSettings()
         }
-        Button("添加网络壁纸…") {
+        Button("添加网络壁纸") {
             model.settingsPage = .sources
             model.wallpaperSource = .remote
             showSettings()
         }
         if model.isLoading { Button("取消加载", action: model.cancelLoading) }
-        Button("壁纸历史…") {
+        Button("壁纸历史") {
             model.settingsPage = .wallpapers
             showSettings()
         }
-        Button("设置…") {
+        Button("偏好设置") {
             model.settingsPage = .preferences
             showSettings()
         }.keyboardShortcut(",")
