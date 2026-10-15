@@ -6,26 +6,31 @@ struct WallpaperAutomationView: View {
     @State private var error: String?
     @State private var choosing = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Toggle("自动切换白天与夜间壁纸", isOn: binding(\.enabled))
-                .disabled(!automation.configuration.isReady)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("自动切换白天与夜间壁纸")
+                Spacer(minLength: 12)
+                Toggle("自动切换白天与夜间壁纸", isOn: binding(\.enabled)).labelsHidden()
+                    .disabled(!automation.configuration.isReady)
+            }
             Picker("切换依据", selection: binding(\.followsAppearance)) {
                 Text("指定时间").tag(false)
                 Text("系统深浅色").tag(true)
             }
             if !automation.configuration.followsAppearance {
                 HStack {
-                    DatePicker("白天开始", selection: timeBinding(day: true), displayedComponents: .hourAndMinute)
-                    DatePicker("夜间开始", selection: timeBinding(day: false), displayedComponents: .hourAndMinute)
+                    DatePicker("白天", selection: timeBinding(day: true), displayedComponents: .hourAndMinute)
+                    DatePicker("夜间", selection: timeBinding(day: false), displayedComponents: .hourAndMinute)
                 }
                 if !automation.configuration.times.isValid {
                     Text("白天和夜间开始时间不能相同。").font(.caption).foregroundStyle(.red)
                 }
             }
+            Divider()
             targetRow(day: true)
             targetRow(day: false)
             if let message = error ?? automation.message { Text(message).font(.caption).foregroundStyle(.red) }
-            Text("先选择两组来源，再开启自动切换。手动选择壁纸或点击上一张／下一张会关闭此功能；锁屏和休眠时延后。")
+            Text("先选择日夜来源再开启。手动换壁纸会关闭自动切换；锁屏或休眠时延后。")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -57,10 +62,11 @@ struct WallpaperAutomationView: View {
                 Text(day ? "白天 / 浅色" : "夜间 / 深色").font(.callout.weight(.medium))
                 Text(target.map { "\($0.isFolder ? "文件夹" : "壁纸") · \($0.name)" } ?? "尚未选择")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    .help(target?.name ?? "尚未选择")
             }
             Spacer()
-            Button("图片或视频") { choose(day: day, folder: false) }.disabled(choosing)
-            Button("文件夹") { choose(day: day, folder: true) }.disabled(choosing)
+            Button("图片或视频") { choose(day: day, folder: false) }.fixedSize().disabled(choosing)
+            Button("文件夹") { choose(day: day, folder: true) }.fixedSize().disabled(choosing)
         }
     }
 

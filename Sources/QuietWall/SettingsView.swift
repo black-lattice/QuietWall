@@ -21,6 +21,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var displays: DisplayManager
 
     var body: some View {
         VStack(spacing: 0) {
@@ -75,7 +76,7 @@ struct SettingsView: View {
                     .padding(24).frame(maxWidth: .infinity)
                 }
             case .preferences:
-                PreferencesView(model: model)
+                PreferencesView(model: model, displays: displays)
             }
         }
         .tint(WallpaperTheme.accent)
