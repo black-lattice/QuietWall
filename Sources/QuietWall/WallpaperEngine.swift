@@ -13,6 +13,7 @@ final class WallpaperEngine {
     private var screenObserver: NSObjectProtocol?
     private var wallpaper: WallpaperAsset?
     private var allScreens = false
+    private var displayMode: WallpaperDisplayMode = .fill
     private var generation = UUID()
 
     init() {
@@ -57,6 +58,11 @@ final class WallpaperEngine {
     func setAllScreens(_ enabled: Bool) {
         allScreens = enabled
         rebuildWindows()
+    }
+
+    func setDisplayMode(_ mode: WallpaperDisplayMode) {
+        displayMode = mode
+        windows.forEach { $0.setDisplayMode(mode) }
     }
 
     func setPlaying(_ playing: Bool) {
@@ -125,6 +131,8 @@ final class WallpaperEngine {
         windows.forEach { $0.close() }
         windows.removeAll()
         guard let wallpaper else { return }
-        windows = targetScreens.map { WallpaperWindow(screen: $0, player: player, poster: wallpaper.poster) }
+        windows = targetScreens.map {
+            WallpaperWindow(screen: $0, player: player, poster: wallpaper.poster, displayMode: displayMode)
+        }
     }
 }

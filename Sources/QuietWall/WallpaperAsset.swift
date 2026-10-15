@@ -8,14 +8,25 @@ struct WallpaperAsset {
     let poster: CGImage
     let details: String
     let warning: String?
+    var sourceURL: URL?
 
     var isVideo: Bool { video != nil }
+    var displayName: String {
+        guard let sourceURL else { return url.lastPathComponent }
+        return sourceURL.lastPathComponent.isEmpty ? (sourceURL.host ?? "网络壁纸") : sourceURL.lastPathComponent
+    }
+
+    func withSourceURL(_ sourceURL: URL) -> WallpaperAsset {
+        var copy = self
+        copy.sourceURL = sourceURL
+        return copy
+    }
 
     // This nonisolated async loader decodes images away from the main actor.
     static func load(_ url: URL) async throws -> WallpaperAsset {
         try Task.checkCancellation()
-        let type = try url.resourceValues(forKeys: [.contentTypeKey]).contentType
-        if type?.conforms(to: .image) == true || CGImageSourceCreateWithURL(url as CFURL, nil) != nil {
+        if let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+           let type = CGImageSourceGetType(source), UTType(type as String)?.conforms(to: .image) == true {
             return try loadImage(url)
         }
         let video = try await VideoAsset.load(url)
